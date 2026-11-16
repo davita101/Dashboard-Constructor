@@ -1,6 +1,7 @@
 # Dashboard Constructor — demo
 
 [![CI](https://github.com/davita101/dashboard-constructor/actions/workflows/ci.yml/badge.svg)](https://github.com/davita101/dashboard-constructor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **This is a demo.** It shows a dashboard built from the Commerce Constructor 7.7 Figma design system, with a real
 > backend behind it. The data you see first is **sample data** copied from the Figma file and loaded into the
@@ -138,3 +139,8 @@ pnpm build && pnpm test:e2e     # Playwright smoke test: /sign-in renders with n
 The e2e test needs a real Clerk publishable key in `.env.local`, or run it against a deployment with
 `PLAYWRIGHT_BASE_URL=https://dashboard-constructor.vercel.app pnpm test:e2e`. CI (`.github/workflows/ci.yml`) runs lint,
 typecheck, unit tests and build on every push and pull request, with dummy env vars only.
+
+## License
+
+[MIT](LICENSE) © 2026 Davit Grdzelishvili. The Commerce Constructor 7.7 Figma design system and third-party
+dependencies keep their own licenses.
