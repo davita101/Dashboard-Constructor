@@ -1,12 +1,13 @@
 "use client"
 
-import { UserButton, useUser } from "@clerk/nextjs"
+import { useUser } from "@clerk/nextjs"
 import { useTranslations } from "next-intl"
 import Image from "next/image"
 import Link from "next/link"
 import * as React from "react"
 import { usePathname } from "next/navigation"
 
+import { AccountMenu } from "@/components/dashboard/account-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -294,7 +295,7 @@ function DashboardSidebar({
               />
               {/* Clerk's own account menu (Manage account, Sign out). Its trigger is stretched invisibly over the whole
                   row, so the Figma row stays the visual and a click anywhere opens the menu. */}
-              <UserButton appearance={{ elements: userMenuOverlay }} />
+              <AccountMenu elements={userMenuOverlay} />
             </SidebarUser>
           </SidebarFooter>
         </div>

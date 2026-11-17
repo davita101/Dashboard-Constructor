@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl"
 import * as React from "react"
 
+import { DemoAccountProvider } from "@/components/dashboard/account-menu"
 import { DashboardFooter } from "@/components/dashboard/dashboard-footer"
 import { LanguageProvider } from "@/components/dashboard/language"
 import { SettingsSync } from "@/components/dashboard/settings-sync"
@@ -28,18 +29,23 @@ function DashboardShell({
   children,
   projects = [],
   settings,
+  demo = false,
 }: {
   children: React.ReactNode
   projects?: SidebarProject[]
   /** The signed-in user's saved settings, applied to this device by SettingsSync. */
   settings?: UserSettings
+  /** Shared demo account: the account menu hides Manage account (profile, password, security). */
+  demo?: boolean
 }) {
   return (
     <LanguageProvider>
       {settings ? <SettingsSync settings={settings} /> : null}
-      <WidgetPickerProvider>
-        <DashboardShellInner projects={projects}>{children}</DashboardShellInner>
-      </WidgetPickerProvider>
+      <DemoAccountProvider demo={demo}>
+        <WidgetPickerProvider>
+          <DashboardShellInner projects={projects}>{children}</DashboardShellInner>
+        </WidgetPickerProvider>
+      </DemoAccountProvider>
     </LanguageProvider>
   )
 }

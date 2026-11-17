@@ -2,6 +2,7 @@ import { Suspense } from "react"
 
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
+import { isDemoUser } from "@/lib/auth/demo-user"
 import { getViewerId } from "@/lib/auth/viewer"
 import { getProjects } from "@/lib/projects/data"
 import { getUserSettings } from "@/lib/settings/queries"
@@ -17,10 +18,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 }
 
 async function ShellWithProjects({ children }: { children: React.ReactNode }) {
-  const [all, settings] = await Promise.all([getProjects(), getUserSettings(await getViewerId())])
+  const [all, settings, demo] = await Promise.all([
+    getProjects(),
+    getUserSettings(await getViewerId()),
+    isDemoUser(),
+  ])
   const projects = all.map(({ id, slug, name, logo }) => ({ id, slug, name, logo }))
   return (
-    <DashboardShell projects={projects} settings={settings}>
+    <DashboardShell projects={projects} settings={settings} demo={demo}>
       {children}
     </DashboardShell>
   )

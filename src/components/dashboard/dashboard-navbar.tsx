@@ -1,9 +1,9 @@
 "use client"
 
-import { UserButton } from "@clerk/nextjs"
 import { useTranslations } from "next-intl"
 import Link from "next/link"
 
+import { AccountMenu } from "@/components/dashboard/account-menu"
 import { useWidgetPicker } from "@/components/dashboard/widgets/widget-picker"
 import type { DashboardSize } from "@/components/dashboard/use-dashboard-size"
 import { Button, ButtonIcon } from "@/components/ui/button"
@@ -76,7 +76,7 @@ function DashboardNavbar({
           <NavbarIconButton icon="/icons/material-star.svg" label={t("upgrade")} variant="dark" data-soon />
         )}
         {/* Clerk's default account menu (Manage account, Sign out), sized to the Figma 32px avatar slot. */}
-        <UserButton appearance={{ elements: { avatarBox: "size-8!" } }} />
+        <AccountMenu elements={{ avatarBox: "size-8!" }} />
         {!mobile && <NavbarIconButton icon="/icons/material-close.svg" label={t("close")} data-soon />}
       </NavbarActions>
     </Navbar>
