@@ -22,6 +22,7 @@ export async function startDemoSignIn(): Promise<DemoSignInResult> {
     if (!user) return { error: UNAVAILABLE }
     // Throws when the password in the env no longer matches the account.
     await clerk.users.verifyPassword({ userId: user.id, password })
+    // Fresh token each click: 60s is enough because the browser redeems it right away.
     const { token } = await clerk.signInTokens.createSignInToken({ userId: user.id, expiresInSeconds: 60 })
     return { ticket: token }
   } catch (error) {

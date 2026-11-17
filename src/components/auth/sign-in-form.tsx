@@ -61,8 +61,17 @@ function SignInForm({ redirectUrl = "/dashboard", demo = false }: { redirectUrl?
   function onDemo() {
     setFailed(undefined)
     startDemo(async () => {
+      // Already signed in: the ticket would be rejected, just continue.
+      if (clerk.session) return router.push(redirectUrl)
+      // Without this a stale "0" from an earlier unticked login makes RememberMeGuard sign the demo user out
+      // as soon as the dashboard loads (the auth_alive cookie is missing).
+      rememberMe.set(remember)
       const result = await startDemoSignIn()
       if ("error" in result) return setFailed(result.error)
+      // A previous attempt (wrong password, earlier demo click) stays in progress and the ticket would
+      // resolve against it without completing. Start from a clean attempt.
+      const reset = await signIn.reset()
+      if (reset.error) return setFailed(reset.error.message)
       const { error } = await signIn.ticket({ ticket: result.ticket })
       if (error) return setFailed(error.message)
       if (signIn.status === "complete") {
