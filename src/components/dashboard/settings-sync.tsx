@@ -4,7 +4,7 @@ import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
-import { languages, saveLocale } from "@/components/dashboard/language"
+import { languages, saveLocale, UNSAVED_KEY } from "@/components/dashboard/language"
 import { applyTheme, localTheme } from "@/components/dashboard/theme"
 import { localLayout, replaceLocalLayout } from "@/components/dashboard/widgets/widget-layout"
 import { toast } from "@/components/ui/toast"
@@ -43,7 +43,14 @@ function SettingsSync({ settings }: { settings: UserSettings }) {
     let refresh = false
     const hasCookie = new RegExp(`(^|; )${LOCALE_COOKIE}=`).test(document.cookie)
     const saved = settings.locale
-    if (saved) {
+    // A language picked on this device that the account does not have yet (the save runs after the refresh, or the tab
+    // closed first): the device wins and uploads it, instead of being reverted from the stale account value.
+    const unsaved = window.localStorage.getItem(UNSAVED_KEY)
+    if (isLocale(unsaved)) {
+      if (hasCookie && unsaved === locale) upload.locale = unsaved
+      else window.localStorage.removeItem(UNSAVED_KEY)
+      if (upload.locale) window.localStorage.removeItem(UNSAVED_KEY)
+    } else if (saved) {
       if (saved !== locale) {
         if (hasCookie) {
           saveLocale(saved)
