@@ -17,7 +17,7 @@ import {
   DropdownMenuItemTitle,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { isLocale, LOCALE_COOKIE, locales, type Locale } from "@/i18n/config"
+import { LOCALE_COOKIE, locales, type Locale } from "@/i18n/config"
 import { updateSettingsAction } from "@/lib/settings/actions"
 
 const LANGUAGE_KEY = "dashboard-language"
@@ -42,23 +42,19 @@ function saveLocale(code: Locale) {
 }
 
 /**
- * Chosen language for the dashboard. The server reads the cookie (src/i18n/request.ts) to render next-intl messages;
- * localStorage keeps a copy so the choice survives a cleared cookie. Picking a language saves both and refreshes.
+ * Chosen language for the dashboard. The server reads the cookie (src/i18n/request.ts) to render next-intl messages.
+ * Picking a language saves the cookie (+ a localStorage copy) and refreshes; nothing writes the cookie on its own.
  */
 function LanguageProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const locale = useLocale()
   const language = languages.find((l) => l.code === locale) ?? languages[0]
 
+  // The cookie is only ever written by an explicit choice (setLanguage below, or "Switch" in SettingsSync's prompt):
+  // a missing cookie is left alone instead of being re-created in the background.
   React.useEffect(() => {
     document.documentElement.lang = locale
-    // Cookie missing but a choice was saved before: restore it.
-    const saved = window.localStorage.getItem(LANGUAGE_KEY)
-    if (isLocale(saved) && saved !== locale && !document.cookie.includes(`${LOCALE_COOKIE}=`)) {
-      saveLocale(saved)
-      router.refresh()
-    }
-  }, [locale, router])
+  }, [locale])
 
   const setLanguage = React.useCallback(
     (code: Locale) => {
@@ -128,4 +124,4 @@ function LanguageMenu({
   )
 }
 
-export { LanguageFlag, LanguageMenu, LanguageProvider, saveLocale, useLanguage }
+export { LanguageFlag, LanguageMenu, LanguageProvider, languages, saveLocale, useLanguage }

@@ -4,6 +4,7 @@ import * as React from "react"
 import { Toast as ToastPrimitive } from "@base-ui/react/toast"
 
 import { Alert, AlertClose, AlertIcon, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 // shadcn `toast` (Base UI) with the Figma toast look: the Alert-Default black pill (layout="toast").
@@ -40,6 +41,11 @@ function ToastTitle(props: ToastPrimitive.Title.Props) {
   return <ToastPrimitive.Title data-slot="toast-title" render={<AlertTitle />} {...props} />
 }
 
+/** Optional action button (pass `actionProps: { children, onClick }` to `toast.add`), same white pill as the Figma "Undo". */
+function ToastAction(props: ToastPrimitive.Action.Props) {
+  return <ToastPrimitive.Action data-slot="toast-action" render={<Button variant="white" shape="pill" size="24" />} {...props} />
+}
+
 function ToastClose(props: ToastPrimitive.Close.Props) {
   return <ToastPrimitive.Close data-slot="toast-close" render={<AlertClose />} {...props} />
 }
@@ -50,6 +56,7 @@ function ToastList() {
     <Toast key={item.id} toast={item}>
       <AlertIcon className="size-4" />
       <ToastTitle />
+      {item.actionProps ? <ToastAction /> : null}
       <ToastClose />
     </Toast>
   ))
@@ -68,4 +75,4 @@ function Toaster({ children, toastManager = toast, ...props }: ToastPrimitive.Pr
   )
 }
 
-export { Toaster, Toast, ToastClose, ToastTitle, ToastViewport, toast }
+export { Toaster, Toast, ToastAction, ToastClose, ToastTitle, ToastViewport, toast }

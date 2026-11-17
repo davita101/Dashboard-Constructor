@@ -1,12 +1,13 @@
 "use client"
 
-import { useLocale } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
-import { saveLocale } from "@/components/dashboard/language"
+import { languages, saveLocale } from "@/components/dashboard/language"
 import { applyTheme, localTheme } from "@/components/dashboard/theme"
 import { localLayout, replaceLocalLayout } from "@/components/dashboard/widgets/widget-layout"
+import { toast } from "@/components/ui/toast"
 import { isLocale, LOCALE_COOKIE } from "@/i18n/config"
 import { updateSettingsAction } from "@/lib/settings/actions"
 import type { UserSettings } from "@/lib/settings/schemas"
@@ -15,10 +16,13 @@ import type { UserSettings } from "@/lib/settings/schemas"
  * Brings the signed-in user's saved settings (user_settings) to this device once per visit: theme, language and
  * widget board. A setting saved on the account wins over this device's copy; one this device has but the account
  * doesn't (chosen before Phase 6) is uploaded. Later changes save themselves (theme.ts, language.tsx, widget-layout.ts).
+ * The locale cookie is never created here: with a cookie the account language replaces it; without one the user is
+ * asked (toast) and the cookie is written only on "Switch".
  */
 function SettingsSync({ settings }: { settings: UserSettings }) {
   const router = useRouter()
   const locale = useLocale()
+  const t = useTranslations("languagePrompt")
   const done = React.useRef(false)
 
   React.useEffect(() => {
@@ -37,16 +41,35 @@ function SettingsSync({ settings }: { settings: UserSettings }) {
     } else if (layout?.length) upload.widgetLayout = layout
 
     let refresh = false
-    if (settings.locale) {
-      if (settings.locale !== locale) {
-        saveLocale(settings.locale)
-        refresh = true
+    const hasCookie = new RegExp(`(^|; )${LOCALE_COOKIE}=`).test(document.cookie)
+    const saved = settings.locale
+    if (saved) {
+      if (saved !== locale) {
+        if (hasCookie) {
+          saveLocale(saved)
+          refresh = true
+        } else {
+          // No cookie: don't touch it. Offer the account's language instead.
+          const language = languages.find((l) => l.code === saved)
+          if (language)
+            toast.add({
+              title: t("title", { language: language.native }),
+              timeout: 12000,
+              actionProps: {
+                children: t("switch"),
+                onClick: () => {
+                  saveLocale(saved)
+                  router.refresh()
+                },
+              },
+            })
+        }
       }
-    } else if (isLocale(locale) && new RegExp(`(^|; )${LOCALE_COOKIE}=`).test(document.cookie)) upload.locale = locale
+    } else if (isLocale(locale) && hasCookie) upload.locale = locale
 
     if (Object.keys(upload).length) void updateSettingsAction(upload)
     if (refresh) router.refresh()
-  }, [settings, locale, router])
+  }, [settings, locale, router, t])
 
   return null
 }
