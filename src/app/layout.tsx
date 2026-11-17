@@ -23,14 +23,17 @@ const inter = Inter({
   display: "swap",
 });
 
+// Only Inter is the default: the other families load when a theme (data-font) or code block first uses them, not on every route.
 const playfair = Playfair_Display({
   variable: "--font-playfair",
+  preload: false,
   subsets: ["latin"],
   display: "swap",
 });
 
 const roboto = Roboto({
   variable: "--font-roboto",
+  preload: false,
   subsets: ["latin"],
   weight: ["400", "500", "700"],
   display: "swap",
@@ -38,6 +41,7 @@ const roboto = Roboto({
 
 const merriweather = Merriweather({
   variable: "--font-merriweather",
+  preload: false,
   subsets: ["latin"],
   weight: ["400", "700"],
   display: "swap",
@@ -45,6 +49,7 @@ const merriweather = Merriweather({
 
 const msMadi = Ms_Madi({
   variable: "--font-ms-madi",
+  preload: false,
   subsets: ["latin"],
   weight: "400",
   display: "swap",
@@ -52,6 +57,7 @@ const msMadi = Ms_Madi({
 
 const sourceCodePro = Source_Code_Pro({
   variable: "--font-source-code-pro",
+  preload: false,
   subsets: ["latin"],
   display: "swap",
 });
