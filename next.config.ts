@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
       : [],
   },
   experimental: {
+    agentUpgrade: "security",
     optimizePackageImports: ["recharts", "date-fns", "lucide-react", "@base-ui/react"],
     // The project form posts up to two 2 MB logos (MAX_LOGO_BYTES) through a Server Action.
     serverActions: { bodySizeLimit: "5mb" },
