@@ -1,6 +1,9 @@
+"use client"
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
+import { ChartHover, useChartHover, type ChartHoverTip } from "@/components/ui/chart-hover"
 import { Icon } from "@/components/ui/icon"
 import { Progress } from "@/components/ui/progress"
 import type { ProgressColor } from "@/components/ui/progress-colors"
@@ -492,6 +495,28 @@ function ChartColumn({ className, tone = "primary", shade = 500, fill = "solid",
   )
 }
 
+/** Invisible full-height strip per point of a sparkline; hovering one shows that point's tip. */
+function HoverStrips({ tips, width, height }: { tips: ChartHoverTip[]; width: number; height: number }) {
+  const hover = useChartHover()
+  const n = tips.length
+  if (n < 1) return null
+  const step = n > 1 ? width / (n - 1) : width
+  return (
+    <g>
+      {tips.map((tip, i) => {
+        const x = Math.max(0, i * step - step / 2)
+        return <rect key={i} x={x} y={0} width={Math.min(step, width - x)} height={height} fill="transparent" {...hover(tip)} />
+      })}
+    </g>
+  )
+}
+
+/** One bar of ChartColumnsMini; a real hover target when it has a tip. */
+function HoverBar({ tip, className, style }: { tip?: ChartHoverTip; className?: string; style?: React.CSSProperties }) {
+  const hover = useChartHover()
+  return <span className={className} style={style} {...hover(tip)} />
+}
+
 const miniTypes: Record<1 | 2 | 3 | 4 | 5 | 6, { height: number; bars: number[] }> = {
   1: { height: 64, bars: [48, 32, 48, 64, 48, 64, 32, 16, 48, 64, 48, 32] },
   2: { height: 64, bars: [32, 48, 32, 56, 40, 64, 24, 48, 56, 32, 48, 40] },
@@ -507,17 +532,20 @@ function ChartColumnsMini({
   tone = "primary",
   type = 1,
   series,
+  tips,
   ...props
 }: React.ComponentProps<"div"> & {
   tone?: ChartTone
   type?: 1 | 2 | 3 | 4 | 5 | 6
   /** Real series (one bar each, scaled to its maximum) instead of the Figma sample bars. */
   series?: readonly number[]
+  /** Hover tooltip per bar (same order as `series`), see seriesTips. */
+  tips?: ChartHoverTip[]
 }) {
   const { height, bars: sample } = miniTypes[type]
   const bars = series ? barHeights(series, height) : sample
   const solid = tone === "dark" || tone.startsWith("white")
-  return (
+  const columns = (
     <div
       data-slot="chart-columns-mini"
       data-tone={tone}
@@ -528,8 +556,9 @@ function ChartColumnsMini({
       {...props}
     >
       {bars.map((bar, i) => (
-        <span
+        <HoverBar
           key={i}
+          tip={tips?.[i]}
           className="w-1 rounded-r2"
           style={{
             height: bar,
@@ -539,6 +568,7 @@ function ChartColumnsMini({
       ))}
     </div>
   )
+  return tips?.length ? <ChartHover>{columns}</ChartHover> : columns
 }
 
 /* ---------------------------------- Sparklines ---------------------------------- */
@@ -570,15 +600,18 @@ function ChartLine({
   tone = "primary",
   type = 1,
   series,
+  tips,
   ...props
 }: Omit<React.ComponentProps<"svg">, "type"> & {
   tone?: ChartTone
   type?: 1 | 2 | 3
   /** Real series, scaled to its maximum, instead of the seeded sample curve. */
   series?: readonly number[]
+  /** Hover tooltip per point (same order as `series`), see seriesTips. */
+  tips?: ChartHoverTip[]
 }) {
   const height = type === 2 ? 55 : 96
-  return (
+  const chart = (
     <svg
       data-slot="chart-line"
       data-tone={tone}
@@ -597,8 +630,10 @@ function ChartLine({
         strokeWidth={1}
         strokeLinejoin="round"
       />
+      {tips?.length ? <HoverStrips tips={tips} width={200} height={height} /> : null}
     </svg>
   )
+  return tips?.length ? <ChartHover>{chart}</ChartHover> : chart
 }
 
 /** Figma Line-Area-Chart-Component: 200x96 line with a fading fill. Type 1-7, 9, 10 (Figma has no 8). */
@@ -607,16 +642,19 @@ function ChartLineArea({
   tone = "primary",
   type = 1,
   series,
+  tips,
   ...props
 }: Omit<React.ComponentProps<"svg">, "type"> & {
   tone?: ChartTone
   type?: Exclude<ChartTypeNumber, 8>
   /** Real series, scaled to its maximum, instead of the seeded sample curve. */
   series?: readonly number[]
+  /** Hover tooltip per point (same order as `series`), see seriesTips. */
+  tips?: ChartHoverTip[]
 }) {
   const id = React.useId()
   const d = linePath(series ? linePoints(series) : curve(areaShapes[type - 1], type * 5 + tone.length, 48), 200, 96)
-  return (
+  const chart = (
     <svg
       data-slot="chart-line-area"
       data-tone={tone}
@@ -636,8 +674,10 @@ function ChartLineArea({
       </defs>
       <path d={`${d} L200 96 L0 96 Z`} fill={`url(#${id})`} />
       <path d={d} fill="none" stroke={toneColor(tone)} strokeWidth={1} strokeLinejoin="round" />
+      {tips?.length ? <HoverStrips tips={tips} width={200} height={96} /> : null}
     </svg>
   )
+  return tips?.length ? <ChartHover>{chart}</ChartHover> : chart
 }
 
 const areaHeights: Record<ChartTypeNumber, number> = {

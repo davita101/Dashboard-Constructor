@@ -36,7 +36,9 @@ import {
 } from "@/components/ui/chart-metric"
 import { useWidgetData, type WidgetData } from "@/components/dashboard/widgets/widget-data"
 import { useWidgetFluid } from "@/components/dashboard/widgets/widget-fluid"
+import { ChartHoverTarget } from "@/components/ui/chart-hover"
 import { ProgressCircle } from "@/components/ui/progress-circle"
+import { completionTip, seriesTips, shareTips } from "@/lib/charts/hover-tips"
 import { downloadCsv, type CsvCell } from "@/lib/csv"
 import { cn } from "@/lib/utils"
 
@@ -226,6 +228,16 @@ function RadialCardPreview({ kind }: { kind: "donut" | "pie" | "progress" | "pro
       ? [...halfLegend]
       : [...sliceLegend]
   const liveProps = live ? { total: sum, totalLabel: t("tasks") } : {}
+  // Hover tooltips from the same real numbers: a slice / ring shows its status, count and share; the gauge shows done / remaining.
+  const sliceTips = counts
+    ? shareTips(
+        statusKeys.map((k, i) => ({ label: t(`status.${k}`), value: counts[i], color: `var(--${tones[i]}-500)` })),
+        { count: t("tasks"), share: t("share") }
+      )
+    : undefined
+  const gaugeTips = data
+    ? [completionTip(data.totals.tasksDone, data.totals.tasks, { title: t("taskCompletion"), done: t("done"), remaining: t("remaining"), total: t("tasks") })]
+    : undefined
   const rows: CsvExport | null =
     data && counts
       ? half
@@ -263,6 +275,7 @@ function RadialCardPreview({ kind }: { kind: "donut" | "pie" | "progress" | "pro
               kind="progress-half"
               text
               className="h-33 w-66"
+              tips={gaugeTips}
               {...(live ? { ratio, total: `${Math.round(ratio * 100)}%`, totalLabel: t("completed") } : {})}
             />
           </ChartCardPlot>
@@ -274,12 +287,13 @@ function RadialCardPreview({ kind }: { kind: "donut" | "pie" | "progress" | "pro
               text
               className={fluid ? "size-36" : "size-66"}
               progress={counts ? counts.map((c, i) => ({ color: donutTones[i], value: sum ? c / sum : 0 })) : undefined}
+              tips={sliceTips}
               {...liveProps}
             />
           </ChartCardPlot>
         ) : (
           <ChartCardPlot inset="none" className={cn("py-4", plot)}>
-            <RadialChart preset="card" kind={kind} count={kind === "donut" ? 4 : 7} values={counts ?? undefined} className="size-49" {...liveProps} />
+            <RadialChart preset="card" kind={kind} count={kind === "donut" ? 4 : 7} values={counts ?? undefined} tips={sliceTips} className="size-49" {...liveProps} />
           </ChartCardPlot>
         )}
         <ChartCardLegend type={kind === "progress" ? "vertical" : undefined} items={legendItems} />
@@ -335,10 +349,22 @@ function MetricTile({ chart }: { chart: MetricChart }) {
   // Real series behind each tile (one point per month, oldest first); without data the Figma sample shapes stay.
   const months = data?.charts.months
   const body = {
-    line: { value: "87", up: "+20%", down: "", node: <ChartLine tone="purple" type={1} series={months?.map((m) => m.projects)} className="h-27 w-23.25" preserveAspectRatio="none" /> },
-    area: { value: "72,550", up: "+6,11%", down: "", node: <ChartLineArea tone="blue" type={1} series={months?.map((m) => m.income)} className="h-24 w-23.25" preserveAspectRatio="none" /> },
-    column: { value: "425", up: "+2.45%", down: "", node: <ChartColumnsMini tone="blue" type={4} series={months?.map((m) => m.tasks)} /> },
-    progress: { value: "72,550", up: "", down: "21,33%", node: <ProgressCircle size="56" value={percent} color="blue" aria-label={`${percent}%`} /> },
+    line: { value: "87", up: "+20%", down: "", node: <ChartLine tone="purple" type={1} series={months?.map((m) => m.projects)} tips={months && seriesTips(months.map((m) => m.label), months.map((m) => m.projects), t("projects"), "var(--purple-500)")} className="h-27 w-23.25" preserveAspectRatio="none" /> },
+    area: { value: "72,550", up: "+6,11%", down: "", node: <ChartLineArea tone="blue" type={1} series={months?.map((m) => m.income)} tips={months && seriesTips(months.map((m) => m.label), months.map((m) => m.income), t("income"), "var(--blue-500)", formatUsd)} className="h-24 w-23.25" preserveAspectRatio="none" /> },
+    column: { value: "425", up: "+2.45%", down: "", node: <ChartColumnsMini tone="blue" type={4} series={months?.map((m) => m.tasks)} tips={months && seriesTips(months.map((m) => m.label), months.map((m) => m.tasks), t("tasks"), "var(--blue-500)")} /> },
+    progress: {
+      value: "72,550",
+      up: "",
+      down: "21,33%",
+      node: (
+        <ChartHoverTarget
+          className="inline-flex"
+          tip={data ? completionTip(data.totals.tasksDone, data.totals.tasks, { title: t("tasksDone"), done: t("done"), remaining: t("remaining"), total: t("tasks") }) : undefined}
+        >
+          <ProgressCircle size="56" value={percent} color="blue" aria-label={`${percent}%`} />
+        </ChartHoverTarget>
+      ),
+    },
   }[chart]
   return (
     <ChartMetricCard size="tile" className="lg:max-w-none">

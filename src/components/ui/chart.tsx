@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { chartTooltipClass, ChartTooltipSeries } from "@/components/ui/chart-hover"
 import { cn } from "@/lib/utils"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
@@ -129,43 +130,6 @@ ${colorConfig
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
-
-// Shared look of every chart tooltip (Figma: black 80% pill, white text; white stays white in dark mode).
-const chartTooltipClass = "grid min-w-26 items-start rounded-r10 bg-black-alpha-80 pb-1 font-default text-11 leading-20 font-bold text-white"
-
-type ChartTooltipSeriesRow = { label: string; value: string; color?: string; /** Bold, e.g. a total. */ strong?: boolean }
-
-/**
- * Tooltip with a title and one row per series, for charts whose hovered point has more values than the plot draws
- * (every series of that month, the status breakdown of a project). Same look as ChartTooltipContent.
- */
-function ChartTooltipSeries({
-  active = true,
-  title,
-  rows,
-  className,
-}: {
-  active?: boolean
-  title?: React.ReactNode
-  rows: ChartTooltipSeriesRow[]
-  className?: string
-}) {
-  if (!active || !rows.length) return null
-  return (
-    <div data-slot="chart-tooltip-series" className={cn(chartTooltipClass, "min-w-34", className)}>
-      {title ? <div className="px-2 pt-2 pb-1">{title}</div> : null}
-      <div className="grid">
-        {rows.map((row, i) => (
-          <div key={i} className="flex w-full items-center gap-2 py-1 pr-4 pl-2">
-            {row.color ? <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: row.color }} /> : null}
-            <span className={cn("flex-1", !row.strong && "font-semibold text-white-alpha-80")}>{row.label}</span>
-            <span className="tabular-nums">{row.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 function ChartTooltipContent({
   active,
