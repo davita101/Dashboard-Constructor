@@ -172,7 +172,12 @@ function CartesianCardPreview({
             categories={liveBars?.map((p) => ({
               name: p.name,
               values: kind === "bar" ? [p.total] : statusKeys.map((k) => p[k]),
+              // Hover shows the split behind the bar (the plain bar only draws the total).
+              detail: statusKeys.map((k) => ({ label: t(`status.${k}`), value: p[k] })),
             }))}
+            totalLabel={t("tasks")}
+            // Income and cost are dollars; task counts stay plain numbers.
+            valueFormat={live ? formatUsd : undefined}
             seriesLabels={
               liveBars
                 ? kind === "bar"
@@ -393,6 +398,7 @@ function MetricLine2Preview() {
               lines="none"
               points={months.map((m) => ({ label: m.label, values: [m.income, m.cost] }))}
               seriesLabels={[t("income"), t("cost")]}
+              valueFormat={formatUsd}
               className={stretch ? "h-full w-full" : "h-24 w-70"}
             />
           ) : (

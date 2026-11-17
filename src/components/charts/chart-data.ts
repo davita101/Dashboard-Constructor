@@ -33,7 +33,12 @@ export function toRows(points: ChartPoint[], keys: string[]): Record<string, str
   }))
 }
 
-export type ChartCategory = { name: string; values: number[] }
+export type ChartCategory = {
+  name: string
+  values: number[]
+  /** Extra rows for the hover tooltip (e.g. the status split behind a project's task total); not drawn. */
+  detail?: { label: string; value: number }[]
+}
 
 /** Biggest single value (`stacked`: biggest row sum) over all categories. */
 export function categoriesMax(categories: ChartCategory[], stacked = false): number {
@@ -47,8 +52,12 @@ export function categoriesMax(categories: ChartCategory[], stacked = false): num
 
 /** Rows `{ name, [prefix + k]: values[k] ?? 0 }` for `count` series per category. */
 export function toStackRows(categories: ChartCategory[], count: number, prefix = "p"): Record<string, string | number>[] {
-  return categories.map((c) => ({
+  // `i` / `key`: the category's position, so the axis and the tooltip can tell apart two categories with the same name.
+  // `key` is a string on purpose: a numeric category key makes Recharts map the pointer on a numeric scale.
+  return categories.map((c, i) => ({
     name: c.name,
+    i,
+    key: String(i),
     ...Object.fromEntries(Array.from({ length: count }, (_, k) => [`${prefix}${k}`, c.values[k] ?? 0])),
   }))
 }
