@@ -327,10 +327,12 @@ function MetricTile({ chart }: { chart: MetricChart }) {
   const data = useWidgetData()
   const live = data ? liveMetric(chart, data) : null
   const percent = live ? live.percent : 64
+  // Real series behind each tile (one point per month, oldest first); without data the Figma sample shapes stay.
+  const months = data?.charts.months
   const body = {
-    line: { value: "87", up: "+20%", down: "", node: <ChartLine tone="purple" type={1} className="h-27 w-23.25" preserveAspectRatio="none" /> },
-    area: { value: "72,550", up: "+6,11%", down: "", node: <ChartLineArea tone="blue" type={1} className="h-24 w-23.25" preserveAspectRatio="none" /> },
-    column: { value: "425", up: "+2.45%", down: "", node: <ChartColumnsMini tone="blue" type={4} /> },
+    line: { value: "87", up: "+20%", down: "", node: <ChartLine tone="purple" type={1} series={months?.map((m) => m.projects)} className="h-27 w-23.25" preserveAspectRatio="none" /> },
+    area: { value: "72,550", up: "+6,11%", down: "", node: <ChartLineArea tone="blue" type={1} series={months?.map((m) => m.income)} className="h-24 w-23.25" preserveAspectRatio="none" /> },
+    column: { value: "425", up: "+2.45%", down: "", node: <ChartColumnsMini tone="blue" type={4} series={months?.map((m) => m.tasks)} /> },
     progress: { value: "72,550", up: "", down: "21,33%", node: <ProgressCircle size="56" value={percent} color="blue" aria-label={`${percent}%`} /> },
   }[chart]
   return (

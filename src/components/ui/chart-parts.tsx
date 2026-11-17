@@ -4,6 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { Icon } from "@/components/ui/icon"
 import { Progress } from "@/components/ui/progress"
 import type { ProgressColor } from "@/components/ui/progress-colors"
+import { barHeights, linePoints } from "@/lib/charts/spark"
 import { cn } from "@/lib/utils"
 
 // Figma Charts Components page (5035:13716): the small parts every chart card is built from.
@@ -505,9 +506,16 @@ function ChartColumnsMini({
   className,
   tone = "primary",
   type = 1,
+  series,
   ...props
-}: React.ComponentProps<"div"> & { tone?: ChartTone; type?: 1 | 2 | 3 | 4 | 5 | 6 }) {
-  const { height, bars } = miniTypes[type]
+}: React.ComponentProps<"div"> & {
+  tone?: ChartTone
+  type?: 1 | 2 | 3 | 4 | 5 | 6
+  /** Real series (one bar each, scaled to its maximum) instead of the Figma sample bars. */
+  series?: readonly number[]
+}) {
+  const { height, bars: sample } = miniTypes[type]
+  const bars = series ? barHeights(series, height) : sample
   const solid = tone === "dark" || tone.startsWith("white")
   return (
     <div
@@ -561,8 +569,14 @@ function ChartLine({
   className,
   tone = "primary",
   type = 1,
+  series,
   ...props
-}: Omit<React.ComponentProps<"svg">, "type"> & { tone?: ChartTone; type?: 1 | 2 | 3 }) {
+}: Omit<React.ComponentProps<"svg">, "type"> & {
+  tone?: ChartTone
+  type?: 1 | 2 | 3
+  /** Real series, scaled to its maximum, instead of the seeded sample curve. */
+  series?: readonly number[]
+}) {
   const height = type === 2 ? 55 : 96
   return (
     <svg
@@ -577,7 +591,7 @@ function ChartLine({
       {...props}
     >
       <path
-        d={linePath(curve(lineShapes[type], type * 7 + tone.length, 40), 200, height)}
+        d={linePath(series ? linePoints(series) : curve(lineShapes[type], type * 7 + tone.length, 40), 200, height)}
         fill="none"
         stroke={toneColor(tone)}
         strokeWidth={1}
@@ -592,10 +606,16 @@ function ChartLineArea({
   className,
   tone = "primary",
   type = 1,
+  series,
   ...props
-}: Omit<React.ComponentProps<"svg">, "type"> & { tone?: ChartTone; type?: Exclude<ChartTypeNumber, 8> }) {
+}: Omit<React.ComponentProps<"svg">, "type"> & {
+  tone?: ChartTone
+  type?: Exclude<ChartTypeNumber, 8>
+  /** Real series, scaled to its maximum, instead of the seeded sample curve. */
+  series?: readonly number[]
+}) {
   const id = React.useId()
-  const d = linePath(curve(areaShapes[type - 1], type * 5 + tone.length, 48), 200, 96)
+  const d = linePath(series ? linePoints(series) : curve(areaShapes[type - 1], type * 5 + tone.length, 48), 200, 96)
   return (
     <svg
       data-slot="chart-line-area"
