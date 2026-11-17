@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -12,7 +11,10 @@ const THUMB_LENGTH = 96
 const ScrollAreaViewportContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(null)
 
 /**
- * Base UI Root + Viewport (native scrolling, hidden native bars) with the Figma Scroll thumb.
+ * Plain native scrolling (hidden native bars) with the Figma Scroll thumb.
+ * Deliberately not Base UI's ScrollArea: it rewrites the viewport's `style` on every scroll event, and each DOM
+ * mutation wakes up extensions that watch the page (ad blockers re-run their filters), which made scrolling lag.
+ * A scroll now causes no DOM writes at all (see ScrollBar).
  * `scrollbar="track"`: Figma 20px scroll track (4px thumb centered), for lists whose content keeps a 20px end gutter.
  */
 function ScrollArea({
@@ -20,22 +22,22 @@ function ScrollArea({
   children,
   scrollbar,
   ...props
-}: ScrollAreaPrimitive.Root.Props & { scrollbar?: VariantProps<typeof scrollBarVariants>["size"] }) {
+}: React.ComponentProps<"div"> & { scrollbar?: VariantProps<typeof scrollBarVariants>["size"] }) {
   const viewportRef = React.useRef<HTMLDivElement>(null)
 
   return (
     <ScrollAreaViewportContext.Provider value={viewportRef}>
-      <ScrollAreaPrimitive.Root data-slot="scroll-area" className={cn("relative", className)} {...props}>
-        <ScrollAreaPrimitive.Viewport
+      <div data-slot="scroll-area" className={cn("relative", className)} {...props}>
+        <div
           ref={viewportRef}
           data-slot="scroll-area-viewport"
-          className="size-full max-h-[inherit] rounded-[inherit] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-500"
+          className="size-full max-h-[inherit] overflow-auto rounded-[inherit] [scrollbar-width:none] outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary-500 [&::-webkit-scrollbar]:hidden"
         >
           {children}
-        </ScrollAreaPrimitive.Viewport>
+        </div>
         <ScrollBar size={scrollbar} />
         <ScrollBar size={scrollbar} orientation="horizontal" />
-      </ScrollAreaPrimitive.Root>
+      </div>
     </ScrollAreaViewportContext.Provider>
   )
 }
@@ -144,31 +146,64 @@ function ScrollBar({
 
     let idle: ReturnType<typeof setTimeout> | undefined
 
-    const update = () => {
-      const max = axis.max(viewport)
-      bar.dataset.state = max > 1 ? "visible" : "hidden"
-      if (max <= 1) return
-      const length = thumbLength(bar)
-      const travel = axis.length(bar) - length
-      thumb.style[axis.size] = `${length}px`
+    // Sizes are measured only when something resizes (below), never per scroll event: reading scrollHeight / clientHeight
+    // right after writing styles forces a synchronous layout of the whole page, which cost ~50 ms per frame while scrolling.
+    let max = 0
+    let travel = 0
+    let frame = 0
+    let scrolling = false
+    // Chromium / Safari 26: the thumb is a Web Animation on the viewport's ScrollTimeline, driven by the compositor, so a
+    // scroll writes nothing to the DOM (extensions that watch the page, like ad blockers, re-run on every DOM change).
+    // Other browsers fall back to moving the thumb from the scroll listener.
+    const native = "ScrollTimeline" in window
+    let animation: Animation | undefined
+
+    const place = () => {
+      frame = 0
+      if (native || max <= 1) return
+      // scrollTop alone doesn't force layout; the thumb only gets a compositor-friendly transform.
       thumb.style.transform = axis.translate((Math.min(Math.max(axis.scroll(viewport), 0), max) / max) * travel)
     }
 
+    const measure = () => {
+      max = axis.max(viewport)
+      bar.dataset.state = max > 1 ? "visible" : "hidden"
+      if (max <= 1) return
+      const length = thumbLength(bar)
+      travel = axis.length(bar) - length
+      thumb.style[axis.size] = `${length}px`
+      if (native) {
+        animation?.cancel()
+        const ScrollTimelineCtor = (window as unknown as { ScrollTimeline: new (o: { source: Element; axis: "x" | "y" }) => AnimationTimeline }).ScrollTimeline
+        animation = thumb.animate(
+          { transform: [axis.translate(0), axis.translate(travel)] },
+          { timeline: new ScrollTimelineCtor({ source: viewport, axis: orientation === "vertical" ? "y" : "x" }), fill: "both", easing: "linear" } as KeyframeAnimationOptions
+        )
+      } else place()
+    }
+
     const onScroll = () => {
-      update()
-      thumb.dataset.scrolling = ""
+      if (!native && !frame) frame = requestAnimationFrame(place)
+      // Touch the attribute only on the first event of a scroll, not on every one (each write invalidates style).
+      if (!scrolling) {
+        scrolling = true
+        thumb.dataset.scrolling = ""
+      }
       clearTimeout(idle)
-      idle = setTimeout(() => delete thumb.dataset.scrolling, 500)
+      idle = setTimeout(() => {
+        scrolling = false
+        delete thumb.dataset.scrolling
+      }, 500)
     }
 
     // Content size changes (tabs, loaded data) resize the scroll range without a scroll event.
-    const resize = new ResizeObserver(update)
+    const resize = new ResizeObserver(measure)
     const observeContent = () => {
       resize.disconnect()
       resize.observe(viewport)
       resize.observe(bar)
       for (const child of viewport.children) resize.observe(child)
-      update()
+      measure()
     }
     const mutation = new MutationObserver(observeContent)
 
@@ -177,11 +212,13 @@ function ScrollBar({
     viewport.addEventListener("scroll", onScroll, { passive: true })
     return () => {
       clearTimeout(idle)
+      cancelAnimationFrame(frame)
+      animation?.cancel()
       resize.disconnect()
       mutation.disconnect()
       viewport.removeEventListener("scroll", onScroll)
     }
-  }, [viewportRef, axis, thumbLength])
+  }, [viewportRef, axis, thumbLength, orientation])
 
   const scrollTo = (viewport: HTMLElement, bar: HTMLElement, thumbStart: number) => {
     const travel = axis.length(bar) - thumbLength(bar)

@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 import { cacheLife, cacheTag } from "next/cache"
 
 import { db } from "@/db"
-import { clients, projectEvents, projectMembers, projects, projectStages, projectStats, stageStats, users } from "@/db/schema"
+import { clients, projectEvents, projectMembers, projects, projectStages, projectStats, stageStats, tasks, users } from "@/db/schema"
 import { DEFAULT_LOGO, type DashboardCharts, type Member, type Project, type ProjectOption, type ProjectDetail, type ProjectEvent, type ProjectFinance, type ProjectTotals } from "@/lib/projects/types"
 import { percentTrend } from "@/lib/projects/finance"
 import { projectTag, userProjectsTag } from "@/lib/projects/tags"
@@ -166,10 +166,11 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 /** Uncached SQL behind queryDashboardCharts (exported so the smoke script can run it outside Next). */
 export async function loadDashboardCharts(userId: string): Promise<DashboardCharts> {
   const mine = memberProjectIds(userId)
-  const monthRows = await db.execute<{ month: string; income: number; cost: number }>(sql`
+  const monthRows = await db.execute<{ month: string; income: number; cost: number; projects: number }>(sql`
     select to_char(m.month, 'YYYY-MM') as month,
       coalesce(sum(p.income), 0)::float8 as income,
-      coalesce(sum(p.cost), 0)::float8 as cost
+      coalesce(sum(p.cost), 0)::float8 as cost,
+      count(p.id)::int as projects
     from generate_series(
       date_trunc('month', now()) - make_interval(months => ${CHART_MONTHS - 1}),
       date_trunc('month', now()),
@@ -180,6 +181,22 @@ export async function loadDashboardCharts(userId: string): Promise<DashboardChar
     group by m.month
     order by m.month
   `)
+  // Tasks created per month over the user's projects (and how many of them are done now): the Tasks tile's series.
+  const taskRows = await db.execute<{ month: string; tasks: number; done: number }>(sql`
+    select to_char(m.month, 'YYYY-MM') as month,
+      count(t.id)::int as tasks,
+      (count(t.id) filter (where t.status = 'done'))::int as done
+    from generate_series(
+      date_trunc('month', now()) - make_interval(months => ${CHART_MONTHS - 1}),
+      date_trunc('month', now()),
+      interval '1 month'
+    ) as m(month)
+    left join ${tasks} t
+      on date_trunc('month', t.created_at) = m.month and t.project_id in (${mine})
+    group by m.month
+    order by m.month
+  `)
+  const taskByMonth = new Map(taskRows.rows.map((r) => [r.month, r]))
   const [[stats], byProject] = await Promise.all([
     db
       .select({
@@ -212,6 +229,9 @@ export async function loadDashboardCharts(userId: string): Promise<DashboardChar
       label: MONTH_LABELS[Number(r.month.slice(5, 7)) - 1],
       income: Number(r.income),
       cost: Number(r.cost),
+      projects: Number(r.projects),
+      tasks: Number(taskByMonth.get(r.month)?.tasks ?? 0),
+      tasksDone: Number(taskByMonth.get(r.month)?.done ?? 0),
     })),
     tasksByStatus: stats,
   }

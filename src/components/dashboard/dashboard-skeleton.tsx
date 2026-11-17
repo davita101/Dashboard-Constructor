@@ -1,6 +1,42 @@
 import { Skeleton } from "@/components/ui/skeleton"
 
 /**
+ * Body of /dashboard while it streams in: same column and spacing as DashboardPage, same grid as WidgetBoard
+ * (24 tracks from @5xl, 2 from @xl, 1 below; charts 540 tall, tiles 164), so the real page replaces it without a jump.
+ * The board itself is per-user and client-only, so this mirrors the default one: three charts, tiles, a table.
+ * Used by app/dashboard/loading.tsx and inside DashboardSkeleton (shell fallback).
+ */
+function DashboardHomeSkeleton() {
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading" className="mx-auto flex w-full max-w-300 flex-col gap-6 md:gap-8 md:px-9 md:py-8 lg:py-12">
+      <div className="flex flex-col gap-6 px-5 pt-5 md:gap-8 md:p-0">
+        <Skeleton className="h-5 w-40" />
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-10 w-48" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="hidden h-8 w-28 rounded-r32 sm:block" />
+            <Skeleton className="h-8 w-28 rounded-r32" />
+          </div>
+        </div>
+      </div>
+      <div className="min-h-210 px-5 md:px-0">
+        <div className="@container">
+          <div className="grid auto-rows-[minmax(164px,auto)] grid-cols-1 gap-3 @xl:grid-cols-2 @xl:gap-6 @5xl:grid-cols-24">
+            {Array.from({ length: 3 }, (_, i) => (
+              <Skeleton key={`chart-${i}`} className="row-span-3 h-135 rounded-r20 @xl:col-span-1 @5xl:col-span-8" />
+            ))}
+            {Array.from({ length: 3 }, (_, i) => (
+              <Skeleton key={`tile-${i}`} className="h-41 rounded-r20 @5xl:col-span-6" />
+            ))}
+            <Skeleton className="h-80 rounded-r20 @xl:col-span-2 @5xl:col-span-24" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Placeholder for the dashboard shell while the layout size is still unknown (first paint) and while a section loads.
  * Pure CSS breakpoints, so it matches the final layout at every size without needing JS: sidebar rail from md,
  * full sidebar from lg, same 64px bar on top.
@@ -37,22 +73,12 @@ function DashboardSkeleton() {
             <Skeleton className="size-8 rounded-full" />
           </div>
         </header>
-        <main className="mx-auto flex w-full max-w-desktop flex-1 flex-col gap-6 p-4 md:p-6 lg:py-8">
-          <Skeleton className="h-8 w-48" />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-32 rounded-r16" />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Skeleton className="h-72 rounded-r16" />
-            <Skeleton className="h-72 rounded-r16" />
-          </div>
-          <Skeleton className="h-64 rounded-r16" />
+        <main className="min-w-0 flex-1">
+          <DashboardHomeSkeleton />
         </main>
       </div>
     </div>
   )
 }
 
-export { DashboardSkeleton }
+export { DashboardHomeSkeleton, DashboardSkeleton }

@@ -81,7 +81,17 @@ export type ProjectDetail = {
 
 export type DashboardCharts = {
   /** Last 9 months, oldest first, ending with the current month. */
-  months: { month: string; label: string; income: number; cost: number }[]
+  months: {
+    month: string
+    label: string
+    income: number
+    cost: number
+    /** Projects started that month. */
+    projects: number
+    /** Tasks created that month, and how many of those are done now. */
+    tasks: number
+    tasksDone: number
+  }[]
   tasksByStatus: { new: number; inWork: number; done: number; failed: number }
   /** Member projects with at least one task: most tasks first, then name; capped (see TASKS_BY_PROJECT_LIMIT). */
   tasksByProject: { name: string; new: number; inWork: number; done: number; failed: number; total: number }[]

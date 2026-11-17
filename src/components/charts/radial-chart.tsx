@@ -1,7 +1,10 @@
+"use client"
+
 import type * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { Badge, type BadgeColor } from "@/components/ui/badge"
+import { ChartHover, useChartHover, type ChartHoverTip } from "@/components/ui/chart-hover"
 import { cn } from "@/lib/utils"
 
 const radialChartVariants = cva("relative inline-flex shrink-0 items-center justify-center", {
@@ -104,10 +107,27 @@ type Props = VariantProps<typeof radialChartVariants> & {
   totalLabel?: string
   /** kind="progress-half": filled share 0-1 (replaces the demo arc). */
   ratio?: number
+  /**
+   * Hover tooltips: one per slice (donut / pie, same order as `values`), per ring (progress, same order as `progress`),
+   * or a single one for the half gauge. Without them the chart has no tooltip.
+   */
+  tips?: ChartHoverTip[]
   className?: string
 }
 
-function RadialChart({ kind = "donut", text = false, count = 7, theme = "default", preset = "default", items = defaultRings, values, progress, total, totalLabel, ratio, className }: Props) {
+/** Pie / donut / rings / gauges are plain SVG: hovering one shows its tip (see ChartHover). */
+function RadialChart(props: Props) {
+  return props.tips?.length ? (
+    <ChartHover>
+      <RadialChartBody {...props} />
+    </ChartHover>
+  ) : (
+    <RadialChartBody {...props} />
+  )
+}
+
+function RadialChartBody({ kind = "donut", text = false, count = 7, theme = "default", preset = "default", items = defaultRings, values, progress, total, totalLabel, ratio, tips, className }: Props) {
+  const hover = useChartHover()
   if (kind === "rings") {
     return (
       <span
@@ -135,7 +155,8 @@ function RadialChart({ kind = "donut", text = false, count = 7, theme = "default
   const white = theme === "white"
   const card = preset === "card"
   const label = (
-    <span className="absolute inset-0 flex flex-col items-center justify-center">
+    // pointer-events-none: the centre label covers the whole chart and must not block hovering the slices / rings under it.
+    <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
       <span
         className={cn(
           "font-default font-bold",
@@ -179,6 +200,7 @@ function RadialChart({ kind = "donut", text = false, count = 7, theme = "default
                 fill={colors[s.i]}
                 stroke="var(--background-0)"
                 strokeWidth={1}
+                {...hover(tips?.[s.i])}
               />
             ) : (
               <path
@@ -188,6 +210,7 @@ function RadialChart({ kind = "donut", text = false, count = 7, theme = "default
                 stroke={colors[s.i]}
                 strokeWidth={card ? 12 : 4}
                 strokeLinecap={card ? "butt" : "round"}
+                {...hover(tips?.[s.i])}
               />
             ),
           )}
@@ -219,7 +242,7 @@ function RadialChart({ kind = "donut", text = false, count = 7, theme = "default
             const value = Math.min(0.9999, Math.max(0, r.value))
             const radius = base - i * step
             return (
-              <g key={`${r.color}-${i}`}>
+              <g key={`${r.color}-${i}`} {...hover(tips?.[i])}>
                 <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={`var(--${r.color}-alpha-15)`} strokeWidth={text ? 6 : 4} />
                 <path d={arc(size / 2, size / 2, radius, 0, 360 * value)} fill="none" stroke={`var(--${r.color}-500)`} strokeWidth={text ? 6 : 4} strokeLinecap="round" />
               </g>
@@ -244,10 +267,12 @@ function RadialChart({ kind = "donut", text = false, count = 7, theme = "default
             <stop offset="100%" stopColor="var(--blue-400)" />
           </linearGradient>
         </defs>
-        <path d={arc(w / 2, h, radius, -90, 90).replace(/ 0 0 1/, " 0 0 1")} fill="none" stroke="var(--blue-alpha-15)" strokeWidth={card ? (text ? 8 : 4) : 2} />
-        {halfRatio > 0 && (
-          <path d={arc(w / 2, h, radius, -90, -90 + 180 * halfRatio)} fill="none" stroke={`url(#half-${text})`} strokeWidth={card ? (text ? 8 : 4) : text ? 3 : 2} strokeLinecap="round" />
-        )}
+        <g {...hover(tips?.[0])}>
+          <path d={arc(w / 2, h, radius, -90, 90).replace(/ 0 0 1/, " 0 0 1")} fill="none" stroke="var(--blue-alpha-15)" strokeWidth={card ? (text ? 8 : 4) : 2} />
+          {halfRatio > 0 && (
+            <path d={arc(w / 2, h, radius, -90, -90 + 180 * halfRatio)} fill="none" stroke={`url(#half-${text})`} strokeWidth={card ? (text ? 8 : 4) : text ? 3 : 2} strokeLinecap="round" />
+          )}
+        </g>
       </svg>
       {text && label}
     </span>

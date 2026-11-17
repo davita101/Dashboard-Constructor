@@ -196,6 +196,7 @@
       "last30": "last 30 days",
       "viewProjects": "View projects",
       "taskCompletion": "Task completion",
+      "share": "Share",
       "completed": "Completed",
       "done": "Done",
       "remaining": "Remaining",
@@ -342,6 +343,10 @@
   },
   "comingSoon": {
     "title": "Coming soon. We are working on it."
+  },
+  "languagePrompt": {
+    "title": "Your account language is {language}. Switch to it?",
+    "switch": "Switch"
   },
   "notFound": {
     "title": "Page not found",

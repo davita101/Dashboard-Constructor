@@ -1,6 +1,7 @@
-import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
+import { DashboardHomeSkeleton } from "@/components/dashboard/dashboard-skeleton"
 
-// Shown while a /dashboard route streams in (the layout's own first paint uses the same skeleton).
+// Body area only: the shell (navbar, sidebar, footer) is already mounted by layout.tsx while a section streams in,
+// so a full-shell skeleton here would draw a second sidebar inside the real one.
 export default function Loading() {
-  return <DashboardSkeleton />
+  return <DashboardHomeSkeleton />
 }

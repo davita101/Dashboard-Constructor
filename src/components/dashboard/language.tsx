@@ -1,6 +1,6 @@
 "use client"
 
-import { useLocale } from "next-intl"
+import { NextIntlClientProvider, useLocale, useTimeZone } from "next-intl"
 import { useRouter } from "next/navigation"
 import * as React from "react"
 
@@ -17,10 +17,13 @@ import {
   DropdownMenuItemTitle,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { isLocale, LOCALE_COOKIE, locales, type Locale } from "@/i18n/config"
+import { LOCALE_COOKIE, locales, type Locale } from "@/i18n/config"
+import { loadMessages, type Messages } from "@/i18n/messages"
 import { updateSettingsAction } from "@/lib/settings/actions"
 
 const LANGUAGE_KEY = "dashboard-language"
+/** Set while a picked language has not reached the account yet; SettingsSync must not override it from a stale account value. */
+const UNSAVED_KEY = "dashboard-language-unsaved"
 
 // Flag asset per locale (public/icons/flags). Locale codes and the default live in "@/i18n/config".
 const flags: Record<Locale, string> = { en: "united-states", ka: "georgia", de: "germany", fr: "france", es: "spain" }
@@ -31,7 +34,7 @@ const natives: Record<Locale, string> = { en: "English", ka: "ქართულ
 type Language = { code: Locale; flag: string; native: string }
 const languages: Language[] = locales.map((code) => ({ code, flag: flags[code], native: natives[code] }))
 
-type LanguageContextValue = { language: Language; setLanguage: (code: Locale) => void }
+type LanguageContextValue = { language: Language; setLanguage: (code: Locale) => void; preload: (code: Locale) => Promise<unknown> }
 
 const LanguageContext = React.createContext<LanguageContextValue | null>(null)
 
@@ -41,36 +44,75 @@ function saveLocale(code: Locale) {
   document.cookie = `${LOCALE_COOKIE}=${code}; path=/; max-age=31536000; samesite=lax`
 }
 
+/** Safety net: save the account language after this long even if the server refresh never reports back. */
+const PERSIST_FALLBACK_MS = 4000
+
 /**
- * Chosen language for the dashboard. The server reads the cookie (src/i18n/request.ts) to render next-intl messages;
- * localStorage keeps a copy so the choice survives a cleared cookie. Picking a language saves both and refreshes.
+ * Chosen language for the dashboard. The server reads the cookie (src/i18n/request.ts) to render next-intl messages.
+ * Picking a language is instant for the client UI: its messages are loaded as a small lazy chunk and swapped in here,
+ * while the server-rendered parts catch up through a background `router.refresh()` (the old order, a server action
+ * queued in front of a full refresh, took 4-5 s before anything changed). The account setting is saved once the refresh
+ * has landed, so it never sits in front of it. Nothing writes the cookie on its own: only an explicit choice does.
  */
 function LanguageProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const locale = useLocale()
+  const serverLocale = useLocale()
+  const timeZone = useTimeZone()
+  // The language picked here, until the server has caught up with it.
+  const [picked, setPicked] = React.useState<{ locale: Locale; messages: Messages } | null>(null)
+  // The language still to be saved on the account once the refresh lands (or after the fallback timer).
+  const toPersist = React.useRef<{ locale: Locale; timer: ReturnType<typeof setTimeout> } | null>(null)
+  const locale = picked?.locale ?? serverLocale
   const language = languages.find((l) => l.code === locale) ?? languages[0]
 
+  const persist = React.useCallback((code: Locale) => {
+    if (toPersist.current?.locale !== code) return
+    clearTimeout(toPersist.current.timer)
+    toPersist.current = null
+    void updateSettingsAction({ locale: code }).then(() => {
+      if (window.localStorage.getItem(UNSAVED_KEY) === code) window.localStorage.removeItem(UNSAVED_KEY)
+    })
+  }, [])
+
+  // The cookie is only ever written by an explicit choice (setLanguage below, or "Switch" in SettingsSync's prompt):
+  // a missing cookie is left alone instead of being re-created in the background.
   React.useEffect(() => {
     document.documentElement.lang = locale
-    // Cookie missing but a choice was saved before: restore it.
-    const saved = window.localStorage.getItem(LANGUAGE_KEY)
-    if (isLocale(saved) && saved !== locale && !document.cookie.includes(`${LOCALE_COOKIE}=`)) {
-      saveLocale(saved)
-      router.refresh()
-    }
-  }, [locale, router])
+  }, [locale])
+
+  // The server caught up: drop the local copy of the messages (state adjusted while rendering, not in an effect)...
+  if (picked && picked.locale === serverLocale) setPicked(null)
+  // ...and save the choice on the account (a no-op unless that language is the one waiting to be saved).
+  React.useEffect(() => {
+    persist(serverLocale)
+  }, [serverLocale, persist])
 
   const setLanguage = React.useCallback(
-    (code: Locale) => {
+    async (code: Locale) => {
+      if (code === locale) return
       saveLocale(code)
-      void updateSettingsAction({ locale: code })
-      router.refresh()
+      window.localStorage.setItem(UNSAVED_KEY, code)
+      // Swap the client UI first; the server parts follow from the refresh.
+      const messages = await loadMessages(code)
+      setPicked({ locale: code, messages })
+      if (toPersist.current) clearTimeout(toPersist.current.timer)
+      toPersist.current = { locale: code, timer: setTimeout(() => persist(code), PERSIST_FALLBACK_MS) }
+      React.startTransition(() => router.refresh())
+      // Safety net: if the server never agrees (failed refresh), fall back to what it renders instead of sticking.
+      setTimeout(() => setPicked((p) => (p?.locale === code ? null : p)), 8000)
     },
-    [router]
+    [locale, router, persist]
   )
 
-  const value = React.useMemo(() => ({ language, setLanguage }), [language, setLanguage])
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+  const value = React.useMemo(() => ({ language, setLanguage, preload: loadMessages }), [language, setLanguage])
+  const content = <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
+  return picked ? (
+    <NextIntlClientProvider locale={picked.locale} messages={picked.messages} timeZone={timeZone}>
+      {content}
+    </NextIntlClientProvider>
+  ) : (
+    content
+  )
 }
 
 function useLanguage() {
@@ -101,9 +143,10 @@ function LanguageMenu({
   side?: "top" | "bottom" | "left" | "right"
   align?: "start" | "center" | "end"
 }) {
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage, preload } = useLanguage()
   return (
-    <DropdownMenu>
+    // Fetch the other languages' messages as the menu opens, so picking one swaps the UI without a network wait.
+    <DropdownMenu onOpenChange={(open) => open && languages.forEach((l) => void preload(l.code))}>
       <DropdownMenuTrigger render={trigger} />
       <DropdownMenuContent side={side} align={align} shape="pilled">
         <DropdownMenuGroup>
@@ -128,4 +171,4 @@ function LanguageMenu({
   )
 }
 
-export { LanguageFlag, LanguageMenu, LanguageProvider, saveLocale, useLanguage }
+export { LanguageFlag, LanguageMenu, LanguageProvider, languages, saveLocale, UNSAVED_KEY, useLanguage }

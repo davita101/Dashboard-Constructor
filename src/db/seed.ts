@@ -10,6 +10,7 @@ import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 
 import { mockCompany, mockEvents, mockProjects, mockStages, mockTeam } from "./mock-data"
+import { spreadProjectDate, spreadTaskDate } from "./seed-dates"
 import * as schema from "./schema"
 
 try {
@@ -141,7 +142,9 @@ async function main() {
     const projectIdByMock = new Map<string, string>()
     let fileSeq = 0
 
+    const seededAt = Date.now()
     for (const [index, mp] of mockProjects.entries()) {
+      const projectStart = spreadProjectDate(index, mockProjects.length, seededAt)
       const [row] = await tx
         .insert(projects)
         .values({
@@ -153,9 +156,10 @@ async function main() {
           income: mp.income,
           cost: mp.cost,
           deadline: shiftDay(mp.deadline),
-          // Spread over the last ~2 months, oldest first: ordering by created_at keeps the Figma sidebar order,
-          // and the finance trend (last 30 days vs the 30 before) has data on both sides.
-          createdAt: new Date(Date.now() - (mockProjects.length - index) * 4 * 86_400_000),
+          // Spread over ~8 months, oldest first: ordering by created_at keeps the Figma sidebar order, the monthly
+          // dashboard charts have data in every month, and the finance trend (last 30 days vs the 30 before) has
+          // data on both sides. Same spread as scripts/spread-seed-dates.mts.
+          createdAt: projectStart,
           updatedAt: shift(mp.updatedAt),
         })
         .returning({ id: projects.id })
@@ -213,6 +217,7 @@ async function main() {
               dueDate: stage.endDate,
               cover: i % 4 === 0 ? "/images/banners/banner-1.png" : null,
               createdBy: ownerId,
+              createdAt: spreadTaskDate(projectStart.getTime(), i, seededAt),
             }
           }),
         )

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { chartTooltipClass, ChartTooltipSeries } from "@/components/ui/chart-hover"
 import { cn } from "@/lib/utils"
 import * as RechartsPrimitive from "recharts"
 import type { TooltipValueType } from "recharts"
@@ -204,10 +205,7 @@ function ChartTooltipContent({
 
   return (
     <div
-      className={cn(
-        "grid min-w-26 items-start rounded-r10 bg-black-alpha-80 pb-1 font-default text-11 leading-20 font-bold text-background-0",
-        className
-      )}
+      className={cn(chartTooltipClass, className)}
     >
       {!nestLabel && tooltipLabel ? <div className="px-2 pt-2 pb-1">{tooltipLabel}</div> : null}
       <div className="grid">
@@ -381,6 +379,7 @@ export {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipSeries,
   ChartLegend,
   ChartLegendContent,
   ChartStyle,

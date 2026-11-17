@@ -18,6 +18,7 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
+  ChartTooltipSeries,
   type ChartConfig,
 } from "@/components/ui/chart"
 import {
@@ -166,11 +167,16 @@ type CandleDatum = (typeof candles)[number]
 const TICK_MAX = 14
 const truncate = (name: string) => (name.length > TICK_MAX ? `${name.slice(0, TICK_MAX - 1)}…` : name)
 
-/** Category tick for live bars: name cut with an ellipsis (full name stays in the row data and the tooltip). */
-function TruncatedTick({ x = 0, y = 0, payload }: { x?: number; y?: number; payload?: { value: string } }) {
+/**
+ * Category tick for live bars: name cut with an ellipsis (full name stays in the row data and the tooltip).
+ * With `names`, the axis category is the row's position and the name is looked up from it: Recharts maps a hover to
+ * the category *value*, so two projects with the same name would otherwise collapse onto the first one.
+ */
+function TruncatedTick({ x = 0, y = 0, payload, names }: { x?: number; y?: number; payload?: { value: string | number }; names?: string[] }) {
+  const value = payload?.value ?? ""
   return (
     <text x={x} y={y} dy={4} textAnchor="end" className="fill-base-600 text-11">
-      {truncate(String(payload?.value ?? ""))}
+      {truncate(String(names ? (names[Number(value)] ?? value) : value))}
     </text>
   )
 }
@@ -213,7 +219,90 @@ type Props = {
   categories?: ChartCategory[]
   /** Series names for the tooltip when `points` / `categories` is given. */
   seriesLabels?: string[]
+  /** How the tooltip prints a value (default: thousands separators), e.g. as currency. */
+  valueFormat?: (value: number) => string
+  /** Label of the total row in the live bar tooltips (default for `bar`: the first series label). */
+  totalLabel?: string
   className?: string
+}
+
+const plainNumber = (v: number) => v.toLocaleString("en-US")
+
+type TooltipPayload = readonly { payload?: unknown }[]
+
+/**
+ * The data row under the pointer. Recharts' `label` is not reliable (in the vertical bar charts it is not the
+ * category), but every payload entry carries the row it came from.
+ */
+function hoveredRow(payload: TooltipPayload | undefined): { month?: unknown; name?: unknown; i?: unknown } | undefined {
+  const row = payload?.[0]?.payload
+  return row && typeof row === "object" ? (row as { month?: unknown; name?: unknown; i?: unknown }) : undefined
+}
+
+/**
+ * Hover tooltip for live `points` charts (lines, columns): the hovered month with EVERY series of that point, named
+ * and formatted, even those the plot does not draw (a column chart of income still tells you the cost). The Figma
+ * sample tooltip (fixed text and numbers) is only for previews without data.
+ */
+function PointsTooltip({
+  active,
+  label,
+  payload,
+  points,
+  seriesLabels,
+  colors,
+  format,
+}: {
+  active?: boolean
+  label?: string | number
+  payload?: TooltipPayload
+  points: ChartPoint[]
+  seriesLabels?: string[]
+  colors: string[]
+  format: (value: number) => string
+}) {
+  const point = points.find((p) => p.label === (hoveredRow(payload)?.month ?? label))
+  if (!active || !point) return null
+  return (
+    <ChartTooltipSeries
+      title={point.label}
+      rows={point.values.map((value, i) => ({ label: seriesLabels?.[i] ?? `#${i + 1}`, value: format(value), color: colors[i] }))}
+    />
+  )
+}
+
+/** Hover tooltip for the live horizontal bars: the project's name, its total and (when given) the split behind it. */
+function CategoryTooltip({
+  active,
+  label,
+  payload,
+  categories,
+  totalLabel,
+  colors,
+  format,
+}: {
+  active?: boolean
+  label?: string | number
+  payload?: TooltipPayload
+  categories: ChartCategory[]
+  totalLabel?: string
+  colors: string[]
+  format: (value: number) => string
+}) {
+  // By position first: two projects can share a name, and the first match would show the wrong one's numbers.
+  const hovered = hoveredRow(payload)
+  const row = typeof hovered?.i === "number" ? categories[hovered.i] : categories.find((c) => c.name === (hovered?.name ?? label))
+  if (!active || !row) return null
+  const total = row.values.reduce((a, b) => a + b, 0)
+  return (
+    <ChartTooltipSeries
+      title={row.name}
+      rows={[
+        ...(totalLabel ? [{ label: totalLabel, value: format(total), strong: true }] : []),
+        ...(row.detail ?? []).map((d, i) => ({ label: d.label, value: format(d.value), color: colors[i] })),
+      ]}
+    />
+  )
 }
 
 const columnKeys: Record<number, string[]> = {
@@ -228,7 +317,7 @@ const columnKeys: Record<number, string[]> = {
 // Live stacked bars: one colour per series (new, inWork, done, failed), same tones as the status donut.
 const statusColors = ["var(--blue-500)", "var(--green-500)", "var(--orange-500)", "var(--sky-500)"]
 
-function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, theme = "default", preset = "default", points, categories, seriesLabels, className }: Props) {
+function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, theme = "default", preset = "default", points, categories, seriesLabels, valueFormat = plainNumber, totalLabel, className }: Props) {
   const barBg = theme === "white" ? "var(--white-alpha-10)" : "var(--base-100)"
   const uid = React.useId().replace(/:/g, "")
   const isHorizontal =
@@ -276,6 +365,9 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
       cursor={card ? { stroke: "var(--base-200)", strokeDasharray: "3 3" } : false}
       isAnimationActive={false}
       content={
+        live && points ? (
+          <PointsTooltip points={points} seriesLabels={seriesLabels} colors={palette} format={valueFormat} />
+        ) : (
         <ChartTooltipContent
           labelFormatter={isLine ? () => <span className="text-11 leading-20 font-bold">Views Products</span> : undefined}
           formatter={
@@ -291,6 +383,7 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
           }
           className={isLine ? "w-39 min-w-0 whitespace-nowrap" : undefined}
         />
+        )
       }
     />
   ) : null
@@ -379,7 +472,7 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
       </BarChart>
     )
   } else if (kind === "bar" && categories) {
-    const rows = categories.map((c, i) => ({ name: c.name, v: c.values[0] ?? 0, i }))
+    const rows = categories.map((c, i) => ({ name: c.name, v: c.values[0] ?? 0, i, key: String(i) }))
     const barTop = niceMax(categoriesMax(categories))
     const label = { position: "right", fontSize: 10, fontWeight: 700, offset: 8 } as const
     chart = (
@@ -397,8 +490,14 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
         </defs>
         {grid}
         <XAxis type="number" domain={[0, barTop]} ticks={niceTicks(barTop, barTop < 4 ? barTop : 4)} tickFormatter={formatCompact} tickLine={false} axisLine={false} />
-        <ChartTooltip cursor={false} isAnimationActive={false} content={<ChartTooltipContent />} />
-        <YAxis yAxisId="l" type="category" dataKey="name" tickLine={false} axisLine={false} width={96} tick={<TruncatedTick />} />
+        <ChartTooltip
+          cursor={false}
+          isAnimationActive={false}
+          // Per bar, not per axis position: the shared tooltip picks the row from the pointer's x in these vertical charts.
+          shared={false}
+          content={<CategoryTooltip categories={categories} totalLabel={totalLabel ?? seriesLabels?.[0]} colors={statusColors} format={valueFormat} />}
+        />
+        <YAxis yAxisId="l" type="category" dataKey="key" tickLine={false} axisLine={false} width={96} tick={<TruncatedTick names={categories.map((c) => c.name)} />} />
         <Bar yAxisId="l" dataKey="v" barSize={3} radius={2} isAnimationActive={false} label={label}>
           {rows.map((d) => (
             <Cell key={d.i} fill={`url(#${uid}-h${d.i})`} />
@@ -441,11 +540,18 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
       <BarChart data={categories ? toStackRows(categories, statusColors.length) : stacked} layout="vertical" margin={margin} stackOffset="expand" barCategoryGap={6}>
         {grid}
         {categories && (
-          <ChartTooltip cursor={false} isAnimationActive={false} content={<ChartTooltipContent />} />
+          // The plot is 100% stacked but the tooltip names the project and gives the real counts.
+          <ChartTooltip
+            cursor={false}
+            isAnimationActive={false}
+            // Per bar, not per axis position (see the plain bar chart above).
+            shared={false}
+            content={<CategoryTooltip categories={categories} totalLabel={totalLabel} colors={statusColors} format={valueFormat} />}
+          />
         )}
         <XAxis type="number" tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tickLine={false} axisLine={false} />
         {categories ? (
-          <YAxis yAxisId="l" type="category" dataKey="name" tickLine={false} axisLine={false} width={96} tick={<TruncatedTick />} />
+          <YAxis yAxisId="l" type="category" dataKey="key" tickLine={false} axisLine={false} width={96} tick={<TruncatedTick names={categories.map((c) => c.name)} />} />
         ) : (
           <>
             {(yAxis === "left" || yAxis === "both") && (
@@ -530,4 +636,4 @@ function CartesianChart({ kind, yAxis = "both", lines = "grid", tooltip = true, 
   )
 }
 
-export { CartesianChart, months }
+export { CartesianChart, CategoryTooltip, PointsTooltip, months }

@@ -2,6 +2,7 @@ import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
+import NextLink from "next/link"
 
 import { Badge, type BadgeSize } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -87,6 +88,11 @@ function Link({
   render,
   ...props
 }: useRender.ComponentProps<"a"> & LinkVariantProps) {
+  // A plain <a> reloads the whole document (shell, Clerk and every script remount). Internal page paths go through
+  // next/link instead: client navigation, prefetch, the dashboard shell stays mounted. API routes (file downloads),
+  // downloads, new tabs, hashes and external URLs stay normal anchors.
+  const href = typeof props.href === "string" ? props.href : undefined
+  const internal = !render && href?.startsWith("/") && !href.startsWith("//") && !href.startsWith("/api/") && !props.target && props.download === undefined
   return useRender({
     defaultTagName: "a",
     props: mergeProps<"a">(
@@ -95,7 +101,7 @@ function Link({
       },
       props
     ),
-    render,
+    render: render ?? (internal ? <NextLink href={href!} /> : undefined),
     state: {
       slot: "link",
       variant,
