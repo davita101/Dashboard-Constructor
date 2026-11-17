@@ -205,7 +205,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "grid min-w-26 items-start rounded-r10 bg-black-alpha-80 pb-1 font-default text-11 leading-20 font-bold text-background-0",
+        "grid min-w-26 items-start rounded-r10 bg-black-alpha-80 pb-1 font-default text-11 leading-20 font-bold text-white",
         className
       )}
     >
